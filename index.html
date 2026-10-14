@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto Clipper</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a66;
+    --line: #e2e0da; --accent: #d9480f; --accent-ink: #ffffff; --ok: #2b8a3e; --err: #c92a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141413; --card: #1e1e1c; --ink: #f1efe9; --muted: #9a978f;
+            --line: #33322f; --accent: #ff7a3d; --accent-ink: #1a1a18; --ok: #69db7c; --err: #ff8787; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 8px 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: 12px 0 4px; }
+  input, select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+                  background: var(--bg); color: var(--ink); font: inherit; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 4px; }
+  .tab { flex: 1; padding: 9px; border-radius: 10px; border: 1px solid var(--line); background: transparent;
+         color: var(--ink); font: inherit; cursor: pointer; }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (min-width: 560px) { .row.three { grid-template-columns: repeat(4, 1fr); } }
+  button.go { width: 100%; margin-top: 16px; padding: 13px; border: 0; border-radius: 12px;
+              background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 600; cursor: pointer; }
+  button.go:disabled { opacity: .5; cursor: default; }
+  .note { font-size: .8rem; color: var(--muted); margin-top: 12px; }
+  .status { display: flex; align-items: center; gap: 10px; }
+  .spin { width: 18px; height: 18px; border: 3px solid var(--line); border-top-color: var(--accent);
+          border-radius: 50%; animation: s 0.9s linear infinite; flex: none; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .err { color: var(--err); }
+  .clips { display: grid; gap: 16px; }
+  .clip video { width: 100%; max-height: 70vh; background: #000; border-radius: 10px; }
+  .clip h3 { font-size: 1rem; margin: 10px 0 2px; }
+  .tags { color: var(--muted); font-size: .85rem; margin: 0 0 8px; }
+  .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .acts a, .acts button { padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line); background: transparent;
+                          color: var(--ink); font: inherit; font-size: .9rem; text-decoration: none; cursor: pointer; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Auto Clipper</h1>
+  <p class="sub">Ubah video panjang jadi klip vertikal 9:16 dengan subtitle, siap untuk Shorts, TikTok, dan Reels.</p>
+
+  <form id="form" class="card">
+    <div id="pwWrap" class="hidden">
+      <label for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="current-password" placeholder="Password aplikasi">
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" role="tab" aria-selected="false" data-mode="url">Link video</button>
+      <button type="button" class="tab" role="tab" aria-selected="true" data-mode="file">Upload file</button>
+    </div>
+
+    <div id="urlWrap" class="hidden">
+      <label for="url">Link video</label>
+      <input id="url" type="url" placeholder="https://...">
+    </div>
+    <div id="fileWrap">
+      <label for="file">File video (mp4, mov, mkv, webm)</label>
+      <input id="file" type="file" accept="video/*">
+    </div>
+
+    <div class="row three">
+      <div><label for="num">Jumlah klip</label>
+        <input id="num" type="number" min="1" max="6" value="3"></div>
+      <div><label for="min">Min (detik)</label>
+        <input id="min" type="number" min="10" max="90" value="20"></div>
+      <div><label for="max">Maks (detik)</label>
+        <input id="max" type="number" min="15" max="120" value="45"></div>
+      <div><label for="lang">Bahasa</label>
+        <select id="lang">
+          <option value="">Otomatis</option>
+          <option value="id">Indonesia</option>
+          <option value="en">Inggris</option>
+        </select></div>
+    </div>
+
+    <button class="go" id="go" type="submit">Buat klip</button>
+    <p class="note">Pakai hanya untuk video milikmu atau yang pemiliknya mengizinkan. Link YouTube sering diblokir
+      di server cloud; kalau gagal, upload filenya langsung.</p>
+  </form>
+
+  <section id="progress" class="card hidden">
+    <div class="status"><div class="spin" id="spin"></div><strong id="stage">Memulai...</strong></div>
+    <p class="note" id="wait">Proses bisa beberapa menit tergantung panjang video. Halaman ini jangan ditutup.</p>
+    <p class="err" id="error"></p>
+  </section>
+
+  <section id="results" class="clips"></section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let mode = "file", needsPw = false, timer = null;
+
+fetch("/api/config").then(r => r.json()).then(c => {
+  needsPw = c.needs_password;
+  if (needsPw) {
+    $("pwWrap").classList.remove("hidden");
+    try { $("pw").value = sessionStorage.getItem("pw") || ""; } catch (e) {}
+  }
+}).catch(() => {});
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  mode = t.dataset.mode;
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === t));
+  $("urlWrap").classList.toggle("hidden", mode !== "url");
+  $("fileWrap").classList.toggle("hidden", mode !== "file");
+}));
+
+function headers() {
+  const h = {};
+  if (needsPw) h["X-App-Password"] = $("pw").value;
+  return h;
+}
+
+function showError(msg) {
+  $("spin").classList.add("hidden");
+  $("stage").textContent = "Gagal";
+  $("wait").classList.add("hidden");
+  $("error").textContent = msg;
+  $("go").disabled = false;
+}
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("results").replaceChildren();
+  $("error").textContent = "";
+  $("progress").classList.remove("hidden");
+  $("spin").classList.remove("hidden");
+  $("wait").classList.remove("hidden");
+  $("stage").textContent = "Mengirim...";
+  $("go").disabled = true;
+  try { if (needsPw) sessionStorage.setItem("pw", $("pw").value); } catch (e) {}
+
+  const fd = new FormData();
+  if (mode === "file") {
+    const f = $("file").files[0];
+    if (!f) return showError("Pilih file video dulu.");
+    fd.append("file", f);
+  } else {
+    if (!$("url").value.trim()) return showError("Isi link video dulu.");
+    fd.append("url", $("url").value.trim());
+  }
+  ["num", "min", "max", "lang"].forEach(k => fd.append(k, $(k).value));
+
+  let res;
+  try {
+    res = await fetch("/api/jobs", { method: "POST", headers: headers(), body: fd });
+  } catch (err) { return showError("Tidak bisa terhubung ke server."); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return showError(data.error || "Permintaan ditolak.");
+  poll(data.id);
+});
+
+function poll(id) {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    try {
+      const res = await fetch("/api/jobs/" + id, { headers: headers() });
+      const j = await res.json();
+      if (!res.ok) return showError(j.error || "Gagal membaca status.");
+      $("stage").textContent = j.stage;
+      if (j.status === "error") return showError(j.error);
+      if (j.status === "done") return finish(id, j.clips);
+    } catch (err) { /* coba lagi */ }
+    poll(id);
+  }, 2000);
+}
+
+function finish(id, clips) {
+  $("progress").classList.add("hidden");
+  $("go").disabled = false;
+  const pq = needsPw ? "?p=" + encodeURIComponent($("pw").value) : "";
+  const box = $("results");
+  clips.forEach((c) => {
+    const base = "/files/" + id + "/" + c.file;
+    const card = document.createElement("article");
+    card.className = "card clip";
+
+    const v = document.createElement("video");
+    v.controls = true; v.playsInline = true; v.preload = "metadata";
+    v.src = base + pq;
+    card.appendChild(v);
+
+    const h = document.createElement("h3");
+    h.textContent = (c.title || c.file) + " (" + c.duration + " dtk)";
+    card.appendChild(h);
+
+    const tags = document.createElement("p");
+    tags.className = "tags";
+    tags.textContent = (c.hashtags || []).join(" ");
+    card.appendChild(tags);
+
+    const acts = document.createElement("div");
+    acts.className = "acts";
+    const dl = document.createElement("a");
+    dl.textContent = "Download";
+    dl.href = base + (pq ? pq + "&dl=1" : "?dl=1");
+    acts.appendChild(dl);
+    const cp = document.createElement("button");
+    cp.type = "button"; cp.textContent = "Salin caption";
+    cp.addEventListener("click", async () => {
+      const text = [c.title, (c.hashtags || []).join(" ")].filter(Boolean).join("\n");
+      try { await navigator.clipboard.writeText(text); cp.textContent = "Tersalin"; }
+      catch (e) { cp.textContent = "Gagal menyalin"; }
+      setTimeout(() => cp.textContent = "Salin caption", 1500);
+    });
+    acts.appendChild(cp);
+    card.appendChild(acts);
+    box.appendChild(card);
+  });
+}
+</script>
+</body>
+</html>
