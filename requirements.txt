@@ -1,5 +1,5 @@
 flask
 gunicorn
 faster-whisper
-yt-dlp
+yt-dlp[default]
 anthropic
