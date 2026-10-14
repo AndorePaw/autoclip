@@ -31,13 +31,18 @@ def get_video(source, workdir):
     target = workdir / "source.mp4"
     if target.exists():
         return target
-    run([
+    cmd = [
         "yt-dlp",
         "-f", "bv*[height<=1080]+ba/b[height<=1080]",
         "--merge-output-format", "mp4",
+        "--retries", "3",
         "-o", str(workdir / "source.%(ext)s"),
-        source,
-    ])
+    ]
+    cookies = os.getenv("YT_COOKIES_FILE", "/tmp/yt-cookies.txt")
+    if os.path.exists(cookies):  # opsional, diisi lewat YT_COOKIES_B64
+        cmd += ["--cookies", cookies]
+    cmd.append(source)
+    run(cmd)
     return target
 
 

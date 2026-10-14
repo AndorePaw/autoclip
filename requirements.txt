@@ -2,4 +2,5 @@ flask
 gunicorn
 faster-whisper
 yt-dlp[default]
+bgutil-ytdlp-pot-provider==2.0.2
 anthropic
